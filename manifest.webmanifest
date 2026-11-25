@@ -1,0 +1,31 @@
+{
+  "name": "中医外科学",
+  "short_name": "中医外科学",
+  "description": "中医外科学 · 教材卡片 / 原书插图 / 自测刷题（离线可用）",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f3f1",
+  "theme_color": "#6b3a55",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "version": "1.0.0"
+}

@@ -1,0 +1,132 @@
+/* 中医外科学 · 练习板块样式（默写 / 选择题 / 设置 / 草稿 / 自评）
+   主题变量复用 app.css 的紫檀配色；只写练习相关组件，不改其它板块。 */
+
+/* ---------- 练习首页：两个大按钮 ---------- */
+.tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.tile-grid .tile{padding:16px 12px;text-decoration:none;color:var(--ink);display:block}
+.tile .t-ic{font-size:22px;color:var(--brown);margin-bottom:4px}
+.tile .t-t{font-size:15px;font-weight:600;color:var(--brown-d)}
+.tile .t-s{font-size:11.5px;color:var(--ink-3);margin-top:2px;line-height:1.5}
+.tile.big-tile{padding:20px 14px}
+.tile.big-tile .t-ic{font-size:26px}
+
+/* ---------- 草稿 / 最近记录 ---------- */
+.draft-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line)}
+.draft-row:first-of-type{border-top:0}
+.draft-row .d-t{font-weight:600;font-size:13.5px}
+.draft-row .d-s{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+.rec-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.rec-row:first-of-type{border-top:0}
+.rec-rate{font-variant-numeric:tabular-nums;font-weight:700;color:var(--brown-d)}
+
+/* ---------- 范围设置：章 → 病证 树 ---------- */
+.range-stat{font-size:12.5px;color:var(--ink-2)}
+.range-stat b{color:var(--brown-d);font-size:14px;font-variant-numeric:tabular-nums}
+.rg-chap{border:1px solid var(--line);border-radius:11px;margin-bottom:8px;background:var(--card);overflow:hidden}
+.rg-hd{display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--card-2);cursor:pointer;user-select:none}
+.rg-hd .rg-box{flex:0 0 auto;width:19px;height:19px;border:1.5px solid var(--line-2);border-radius:5px;background:#fff;position:relative}
+.rg-hd .rg-box.all{background:var(--brown);border-color:var(--brown)}
+.rg-hd .rg-box.all:after{content:"";position:absolute;left:5px;top:2px;width:5px;height:9px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(42deg)}
+.rg-hd .rg-box.half{background:var(--brown-l);border-color:var(--brown)}
+.rg-hd .rg-box.half:after{content:"";position:absolute;left:4px;top:7.5px;width:9px;height:2px;background:#fff}
+.rg-hd .rg-nm{flex:1;min-width:0;font-size:14px;font-weight:600;color:var(--brown-d)}
+.rg-hd .rg-n{font-size:11.5px;color:var(--ink-3);flex:0 0 auto}
+.rg-hd .rg-chev{color:var(--ink-3);font-size:13px;transition:transform .18s}
+.rg-chap.open .rg-chev{transform:rotate(90deg)}
+.rg-bd{display:none;padding:2px 0}
+.rg-chap.open .rg-bd{display:block}
+.pick{display:flex;align-items:center;gap:9px;padding:8px 12px;border-top:1px solid var(--line);font-size:14px;cursor:pointer}
+.pick input{width:17px;height:17px;accent-color:var(--brown);margin:0;flex:0 0 auto}
+.pick .pk-nm{flex:1;min-width:0}
+.pick .pk-s{font-size:11px;color:var(--ink-3);flex:0 0 auto}
+.pick.dis{color:var(--ink-3);cursor:default;background:var(--paper-2)}
+.pick.dis input{opacity:.35}
+
+/* ---------- 默写页 ---------- */
+.mo-hd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:2px}
+.mo-hd .mo-nm{font-family:"Songti SC","STSong","Noto Serif SC",serif;font-size:21px;font-weight:700;color:var(--brown-d);letter-spacing:1px}
+.mo-hd .mo-idx{font-size:12px;color:var(--ink-3)}
+.mo-syn{border:1px solid var(--line);border-radius:11px;padding:9px 11px;margin:10px 0;background:var(--card-2)}
+.mo-syn-h{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--brown-d);margin-bottom:6px;font-size:13px}
+.mo-syn-h .mo-tag{font-size:10.5px;color:#fff;background:var(--brown);border-radius:5px;padding:1px 6px}
+.mo-f{margin:7px 0}
+.mo-f label{display:block;font-size:12px;color:var(--ink-2);margin-bottom:3px}
+.mo-f .input,.mo-f .textarea{width:100%}
+.mo-f .textarea{min-height:52px;resize:vertical}
+.mo-f-row{display:flex;align-items:flex-start;gap:8px}
+.mo-f-row .grow{flex:1;min-width:0}
+.mo-f .grow{display:block}
+.se-row{display:flex;gap:6px;margin-top:4px}
+.se-btn{border:1px solid var(--line-2);border-radius:8px;background:var(--card);color:var(--ink-2);
+  font-size:11.5px;padding:5px 7px;cursor:pointer;font-family:inherit;line-height:1.2;white-space:nowrap}
+.se-btn.on-ok{background:var(--green-l);border-color:#9ec9a8;color:var(--green);font-weight:600}
+.se-btn.on-bad{background:#f7ecef;border-color:#d9a79f;color:var(--red);font-weight:600}
+.an-key{margin-top:4px;padding:6px 9px;border-left:3px solid var(--green);background:var(--green-l);
+  border-radius:0 7px 7px 0;font-size:12.5px;line-height:1.65;color:#265c37}
+.an-key .ak-l{font-weight:700;margin-right:3px}
+.an-fold{margin-top:4px;font-size:12px}
+.an-fold summary{cursor:pointer;color:var(--brown);font-weight:600}
+.an-fold .an-clinic{font-size:12.5px;line-height:1.7;color:var(--ink-2);margin-top:4px;
+  padding:6px 9px;background:var(--paper-2);border-radius:7px;white-space:pre-wrap}
+.mo-progress{display:flex;align-items:center;gap:8px}
+.mo-progress .pbar{flex:1;margin-top:0}
+
+/* ---------- 选择题页 ---------- */
+.pq{border:1px solid var(--line);border-radius:12px;padding:11px;margin:11px 0;background:var(--card)}
+.pq-hd{display:flex;align-items:center;gap:7px;margin-bottom:7px;flex-wrap:wrap}
+.pq-no{flex:0 0 auto;width:20px;height:20px;border-radius:6px;background:var(--brown);color:#fff;
+  font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;font-weight:600}
+.pq-tag{font-size:10.5px;color:#fff;background:var(--accent);border-radius:5px;padding:1px 6px}
+.pq-stem{font-size:13.8px;line-height:1.7;margin-bottom:8px;font-weight:500}
+.pq-stem .pq-note{font-weight:400;font-size:11.5px;color:var(--ink-3)}
+.pq-opts{display:flex;flex-direction:column;gap:6px}
+.q-opt{display:flex;gap:8px;align-items:flex-start;text-align:left;border:1px solid var(--line);
+  border-radius:9px;background:var(--card);padding:8px 10px;font:inherit;font-size:13.3px;
+  line-height:1.55;cursor:pointer;color:var(--ink);width:100%}
+.q-opt[disabled]{opacity:.95;cursor:default}
+.q-opt.chosen{border-color:var(--brown);background:#f4ecf0}
+.q-opt.right{border-color:var(--green);background:#eef7f0}
+.q-opt.wrong{border-color:var(--red);background:#f7ecef}
+.q-lt{flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:var(--card-2);border:1px solid var(--line-2);
+  font-size:11px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2)}
+.q-opt.chosen .q-lt{background:var(--brown);border-color:var(--brown);color:#fff}
+.q-opt.right .q-lt{background:var(--green);border-color:var(--green);color:#fff}
+.q-opt.wrong .q-lt{background:var(--red);border-color:var(--red);color:#fff}
+.pq-ft{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px}
+.q-res{margin-top:8px;font-size:13px;font-weight:600}
+.q-res.ok{color:var(--green)}
+.q-res.bad{color:var(--red)}
+.q-res .q-key{display:block;font-weight:400;font-size:12px;color:var(--ink-2);margin-top:3px;line-height:1.7}
+.pq.done{border-color:var(--line-2)}
+
+/* 完整对照表 */
+.cmp-tbl{width:100%;border-collapse:collapse;font-size:12.3px;line-height:1.55}
+.cmp-tbl th,.cmp-tbl td{border:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+.cmp-tbl th{background:var(--card-2);color:var(--brown-d);font-weight:600;white-space:nowrap}
+.cmp-tbl td.c-sy{font-weight:600;color:var(--brown-d);white-space:nowrap}
+.cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:9px}
+
+/* ---------- 结果页 ---------- */
+.pr-result{text-align:center;padding:22px 14px}
+.pr-result .pr-num{font-size:40px;font-weight:700;color:var(--brown-d);line-height:1.1;font-variant-numeric:tabular-nums}
+.pr-result .pr-lb{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+.pr-result .pr-line{font-size:14px;color:var(--ink-2);margin-top:12px;line-height:1.8}
+.pr-result .pr-line b{color:var(--brown-d);font-size:16px}
+
+/* ---------- 通用小件 ---------- */
+.fld-note{font-size:11.5px;color:var(--ink-3);line-height:1.6}
+.sticky-ft{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(247,243,241,0),var(--paper) 34%);
+  padding:10px 0 4px;z-index:5}
+.er-kind.sub{background:var(--accent)}
+.chip.gold2{background:var(--accent-l);border-color:#e6d3b6;color:#7a5a2e}
+
+/* 设置页底部固定操作条（在底栏之上） */
+.pr-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tab) + env(safe-area-inset-bottom));
+  width:100%;max-width:760px;display:flex;align-items:center;gap:10px;padding:9px 14px;
+  background:rgba(247,243,241,.98);border-top:1px solid var(--line);
+  box-shadow:0 -2px 12px rgba(38,31,35,.08);z-index:35}
+.pr-bar .btn{height:40px;min-width:120px}
+
+/* 默写：每个证型一块「本证型自评」 */
+.se-line{display:flex;align-items:center;gap:6px;margin:8px 0 2px;padding-top:7px;border-top:1px dashed var(--line)}
+.se-hint{font-size:11.5px;color:var(--ink-3);margin-right:2px}

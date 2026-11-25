@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>selftest · 中医外科学</title>
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="css/practice.css">
+</head>
+<body>
+<div id="app"><header id="hd"></header><main id="main"></main><nav id="tabbar"></nav></div>
+<div id="toast"></div><div id="dialog"></div><div id="R"></div>
+<script src="js/version.js"></script>
+<script src="data/material.js"></script>
+<script src="data/practice.js"></script>
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/practiceview.js"></script>
+<script src="js/misc.js"></script>
+<script src="js/boot.js"></script>
+<script>
+/* 中医外科学 · 自测（断言 ≥120 条，2026-11-25 新目录/翻页卡片形态）
+   覆盖：material 自洽 / core 数据层 / 章折叠目录 / 翻页卡片 / 搜索 / 练习数据 /
+        选择题生成器 200 次随机 / 默写页 / 选择题页 / 收藏笔记编辑隐藏 / 返回键 / 布局。
+   —— 全部断言数据驱动：换成真实 material.js / practice.js 后仍然成立。 */
+(function () {
+  'use strict';
+  var Z = window.WK, UI = window.WK_UI, P = window.WK_PRACTICE, C = window.WK_CARDS;
+  var Pn = 0, F = 0, L = [];
+  function ok(name, cond, detail) {
+    if (cond) { Pn++; }
+    else { F++; L.push('FAIL ' + name + (detail !== undefined ? ' :: ' + detail : '')); }
+  }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function q(sel) { return document.querySelector(sel); }
+  function qa(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function nav(h) { location.hash = h; UI.render(); }
+  function mainTxt() { return (document.getElementById('main').textContent || ''); }
+  function tx(sel) { var e = q(sel); return e ? e.textContent : ''; }
+  function closeDlg() { try { UI.closeDialog(false); } catch (e) { } }
+  function loadRes(src) { return fetch(src, { method: 'HEAD', cache: 'no-store' }).then(function (r) { return r.ok; }).catch(function () { return false; }); }
+  function sy(d) { return Z.syOf(d).filter(function (s) { return s && s.name; }); }
+  function isCardHref(h) { return /^#\/card\/[A-Za-z0-9_-]+(\?p=\d+)?$/.test(String(h || '')); }
+  function symHrefRe(h) { return /^#\/card\/[A-Za-z0-9_-]+\?p=\d+$/.test(String(h || '')); }
+  function activeTab() { var k = -1; qa('.pg-tab').forEach(function (b, i) { if (b.classList.contains('on')) k = i; }); return k; }
+  function walkBlocks(bs, fn) {
+    (bs || []).forEach(function (b) {
+      if (!b || !b.t) return;
+      fn(b);
+      if (b.t === 'sub') walkBlocks(b.blocks, fn);
+    });
+  }
+  function blockTypes(bs) { var t = {}; walkBlocks(bs, function (b) { t[b.t] = (t[b.t] || 0) + 1; }); return t; }
+
+  async function run() {
+    var snap = null, openSnap = null;
+    try {
+      snap = JSON.parse(JSON.stringify({
+        drafts: Z.store.drafts, prec: Z.store.prec, fav: Z.store.fav, notes: Z.store.notes,
+        edits: Z.store.edits, sel: Z.store.sel, hidden: Z.store.hidden, last: Z.store.last
+      }));
+      openSnap = localStorage.getItem('wk.cat.open.v1');
+      /* 断言不依赖用户已有的收藏/笔记/隐藏/编辑：先清空，收尾时原样恢复 */
+      Z.store.fav = {}; Z.store.notes = {}; Z.store.hidden = {}; Z.store.edits = {};
+      Z.store.sel = {}; Z.store.drafts = []; Z.store.prec = [];
+      Z.save(true);
+
+      /* ============================================================
+       *  A. material 数据自洽（新 schema）
+       * ============================================================ */
+      ok('接口：WK / WK_UI / WK_CARDS / WK_PRACTICE 已加载', !!window.WK && !!window.WK_UI && !!C && !!P);
+      ok('数据：window.WK_MAT 存在', !!window.WK_MAT);
+      var MS = Z.MAT.stats || {};
+      var CHS = Z.MAT.chapters || [], CARDS = Z.MAT.cards || [];
+      ok('数据：章数 = 9', CHS.length === 9, CHS.length);
+      ok('数据：stats.chapters 与数组一致', MS.chapters === CHS.length, MS.chapters + '/' + CHS.length);
+      ok('数据：卡片数 = 132', CARDS.length === 132, CARDS.length);
+      ok('数据：stats.cards 与数组一致', MS.cards === CARDS.length, MS.cards + '/' + CARDS.length);
+      var totalPages = CARDS.reduce(function (n, c) { return n + ((c.pages || []).length); }, 0);
+      ok('数据：页数 = stats.pages（当前 ' + MS.pages + '）', totalPages === MS.pages && totalPages > 400, totalPages + '/' + MS.pages);
+      var diseaseIds = [];
+      CHS.forEach(function (ch) { (ch.diseaseIds || []).forEach(function (id) { diseaseIds.push(id); }); });
+      ok('数据：病证数 = 124 且 stats.diseases 一致', diseaseIds.length === 124 && MS.diseases === 124, diseaseIds.length + '/' + MS.diseases);
+      var kinds = {};
+      CARDS.forEach(function (c) { kinds[c.kind] = (kinds[c.kind] || 0) + 1; });
+      ok('数据：kind 只含 chapter/main/sub/attach', Object.keys(kinds).every(function (k) {
+        return ['chapter', 'main', 'sub', 'attach'].indexOf(k) >= 0;
+      }), JSON.stringify(kinds));
+      ok('数据：章概述卡数量 = 有 cardId 的章数（当前 8）', kinds.chapter === CHS.filter(function (ch) {
+        return !!ch.cardId;
+      }).length && kinds.chapter >= 1, kinds.chapter);
+      ok('数据：主病证 = 病证数 − 子病证 − 附病', kinds.main === diseaseIds.length - kinds.sub - kinds.attach, kinds.main);
+      ok('数据：子病证 23 张', kinds.sub === 23, kinds.sub);
+      ok('数据：附病 8 张', kinds.attach === 8, kinds.attach);
+      ok('数据：card id 唯一', (function () {
+        var s = {}; return CARDS.every(function (c) { if (!c.id || s[c.id]) return false; s[c.id] = 1; return true; });
+      })());
+      ok('数据：每张卡有 id/kind/name/displayName/chapterId', CARDS.every(function (c) {
+        return c && c.id && c.kind && c.name && c.displayName && c.chapterId;
+      }));
+      ok('数据：卡片 chapterId 都指向有效章', CARDS.every(function (c) { return !!Z.chapterById(c.chapterId); }));
+      ok('数据：每张卡至少 1 页', CARDS.every(function (c) { return Array.isArray(c.pages) && c.pages.length >= 1; }));
+      ok('数据：单卡页数 ≤ 8（实测最多 8 页）', CARDS.every(function (c) { return c.pages.length <= 8; }));
+      ok('数据：每页标题非空', CARDS.every(function (c) { return c.pages.every(function (p) { return p && p.title && String(p.title).trim(); }); }));
+      ok('数据：每页 blocks 非空', CARDS.every(function (c) { return c.pages.every(function (p) { return Array.isArray(p.blocks) && p.blocks.length > 0; }); }));
+      var BADT = ['p', 'h', 'img', 'table', 'syn', 'sub'];
+      ok('数据：block 类型全部合法（含 sub 递归）', (function () {
+        var bad = 0;
+        CARDS.forEach(function (c) { c.pages.forEach(function (p) { walkBlocks(p.blocks, function (b) { if (BADT.indexOf(b.t) < 0) bad++; }); }); });
+        return bad === 0;
+      })());
+      var bt = { p: 0, h: 0, img: 0, table: 0, syn: 0, sub: 0 };
+      CARDS.forEach(function (c) {
+        c.pages.forEach(function (p) {
+          walkBlocks(p.blocks, function (b) { bt[b.t]++; });
+        });
+      });
+      ok('数据：插图数 = stats.figs（当前 ' + MS.figs + '）', bt.img === MS.figs && MS.figs > 0, bt.img + '/' + MS.figs);
+      ok('数据：表格数 = stats.tables（当前 ' + MS.tables + '）', bt.table === MS.tables && MS.tables > 0, bt.table + '/' + MS.tables);
+      ok('数据：证型数 = stats.syndromes（当前 ' + MS.syndromes + '）', bt.syn === MS.syndromes && MS.syndromes > 0, bt.syn + '/' + MS.syndromes);
+      ok('数据：每个 img 块都有 src 且为 img/fig/ 下文件', (function () {
+        var bad = 0;
+        CARDS.forEach(function (c) { c.pages.forEach(function (p) { walkBlocks(p.blocks, function (b) {
+          if (b.t === 'img' && (!b.src || b.src.indexOf('img/fig/') !== 0)) bad++;
+        }); }); });
+        return bad === 0;
+      })());
+      ok('数据：每个 table 块都有 img 与 cap', (function () {
+        var bad = 0;
+        CARDS.forEach(function (c) { c.pages.forEach(function (p) { walkBlocks(p.blocks, function (b) {
+          if (b.t === 'table' && (!b.img || !b.cap)) bad++;
+        }); }); });
+        return bad === 0;
+      })());
+      var syns = [];
+      CARDS.forEach(function (c) { c.pages.forEach(function (p) { walkBlocks(p.blocks, function (b) { if (b.t === 'syn') syns.push(b); }); }); });
+      ok('数据：证型字段完整（sid/name/clinic/treat/formula）', syns.every(function (s) {
+        return s.sid && s.name && s.clinic && s.treat && s.formula;
+      }), syns.length);
+      ok('数据：证型 formulaNames 为非空字符串数组', syns.every(function (s) {
+        return Array.isArray(s.formulaNames) && s.formulaNames.length > 0 &&
+          s.formulaNames.every(function (n) { return n && String(n).trim(); });
+      }));
+      ok('数据：JSON 里没有 undefined 字样', JSON.stringify(Z.MAT).indexOf('undefined') < 0);
+      ok('数据：章 diseaseIds 都指向存在的卡', CHS.every(function (ch) {
+        return (ch.diseaseIds || []).length > 0 && (ch.diseaseIds || []).every(function (id) { return !!Z.cardById(id); });
+      }));
+      ok('数据：每个病证只挂在 1 个章里', (function () {
+        var cnt = {};
+        CHS.forEach(function (ch) { (ch.diseaseIds || []).forEach(function (id) { cnt[id] = (cnt[id] || 0) + 1; }); });
+        return Object.keys(cnt).every(function (id) { return cnt[id] === 1; }) && Object.keys(cnt).length === 124;
+      })());
+      ok('数据：章概述卡（非空 cardId）都是 kind=chapter', CHS.every(function (ch) {
+        if (!ch.cardId) return true;
+        var c = Z.cardById(ch.cardId);
+        return !!c && c.kind === 'chapter';
+      }));
+      ok('数据：第十四章没有概述卡', !Z.chapterById('ch14').cardId);
+      ok('数据：子病证 / 附病 parentId 都指向存在的卡', CARDS.every(function (c) {
+        if (c.kind !== 'sub' && c.kind !== 'attach') return true;
+        return !!c.parentId && !!Z.cardById(c.parentId);
+      }));
+      ok('数据：子病证 / 附病 displayName 带「·」前缀', CARDS.every(function (c) {
+        if (c.kind !== 'sub' && c.kind !== 'attach') return true;
+        return String(c.displayName).indexOf('·') > 0;
+      }));
+      ok('数据：总字数 > 200000', (MS.chars || 0) > 200000, MS.chars);
+
+      /* ============================================================
+       *  B. core 数据层 API
+       * ============================================================ */
+      ok('core：cardById(d0601) 命中疖', !!Z.cardById('d0601') && Z.cardById('d0601').name === '疖');
+      ok('core：cardById 不存在返回 null', Z.cardById('nope999') === null);
+      ok('core：chapterById(ch06) 命中第六章', !!Z.chapterById('ch06') && Z.chapterById('ch06').name === '疮疡');
+      var ch6 = Z.chapterById('ch06');
+      ok('core：cardsOfChapter(ch06) 数量 = diseaseIds 数量', Z.cardsOfChapter('ch06').length === ch6.diseaseIds.length,
+        Z.cardsOfChapter('ch06').length + '/' + ch6.diseaseIds.length);
+      ok('core：cardsOfChapter 顺序 = diseaseIds 顺序', Z.cardsOfChapter('ch06').every(function (c, i) {
+        return c.id === ch6.diseaseIds[i];
+      }));
+      ok('core：chapterCard(ch06) = d0600', (Z.chapterCard(ch6) || {}).id === 'd0600');
+      ok('core：chapterCard(ch14) = null', Z.chapterCard(Z.chapterById('ch14')) === null);
+      var seq6 = Z.chapterSequence('ch06');
+      ok('core：章序列第一个是章概述卡', seq6[0] === 'd0600', seq6[0]);
+      ok('core：章序列无重复', (function () { var s = {}; return seq6.every(function (id) { if (s[id]) return false; s[id] = 1; return true; }); })());
+      ok('core：navCard 下一个 = 本章下一个病证', Z.navCard('d0601', 1) === 'd0602', Z.navCard('d0601', 1));
+      ok('core：navCard 上一个正确', Z.navCard('d0601', -1) === 'd0600', Z.navCard('d0601', -1));
+      ok('core：navCard 章首再往前 = ""', Z.navCard('d0600', -1) === '', Z.navCard('d0600', -1));
+      ok('core：navCard 章末再往后 = ""', Z.navCard('d0613', 1) === '', Z.navCard('d0613', 1));
+      Z.setHidden('d0602', true);
+      ok('core：navCard 跳过隐藏的卡', Z.navCard('d0601', 1) === 'd0602a', Z.navCard('d0601', 1));
+      Z.setHidden('d0602', false);
+      var vc = Z.viewCard('d0601');
+      ok('core：viewCard 返回 4 页', vc && vc.pages.length === 4, vc && vc.pages.length);
+      ok('core：viewCard 无编辑时 hasEdit=false', vc && vc.hasEdit === false);
+      ok('core：syndromeHref 生成 #/card/…?p=…', Z.syndromeHref({ cardId: 'd0601', page: 2 }) === '#/card/d0601?p=2',
+        Z.syndromeHref({ cardId: 'd0601', page: 2 }));
+      ok('core：syndromeHref 对无效卡返回 ""', Z.syndromeHref({ cardId: 'nope', page: 0 }) === '');
+      ok('core：esc 转义 < > & "', Z.esc('<a href="x">&\'') === '&lt;a href=&quot;x&quot;&gt;&amp;&#39;');
+      var synHTML = Z.renderRich([{ t: 'syn', sid: 's1', name: '热毒蕴结证', clinic: '红肿疼痛', treat: '清热解毒', formula: '五味消毒饮' }]);
+      ok('core：syn 渲染出临床表现/治法/代表方', synHTML.indexOf('临床表现：') > 0 && synHTML.indexOf('治法：') > 0 &&
+        synHTML.indexOf('代表方：') > 0 && synHTML.indexOf('热毒蕴结证') > 0);
+      ok('core：syn 空 clinic 输出「原书未单列」', Z.renderRich([{ t: 'syn', sid: 's2', name: 'X', clinic: '', treat: 'T', formula: 'F' }]).indexOf('原书未单列') > 0);
+      var subHTML = Z.renderRich([{ t: 'sub', title: '2.外治疗法', blocks: [
+        { t: 'p', x: '外敷金黄散' }, { t: 'sub', title: '3.其他疗法', blocks: [{ t: 'p', x: '中成药' }] }
+      ] }]);
+      ok('core：sub 递归渲染（嵌套 sub）', subHTML.indexOf('sec sub') > 0 && subHTML.indexOf('2.外治疗法') > 0 &&
+        subHTML.indexOf('外敷金黄散') > 0 && subHTML.indexOf('3.其他疗法') > 0 && subHTML.indexOf('中成药') > 0);
+      ok('core：blocksText 抽出正文（含 sub 内）', Z.pageText(vc.pages[0]).indexOf('疖是指发生在肌肤浅表部位') >= 0);
+      var p0 = vc.pages[0];
+      ok('core：pagePText 段落数 = 该页 p 块数', Z.pagePText(p0).split('\n\n').length === 7,
+        Z.pagePText(p0).split('\n\n').length);
+      var rp = Z.replacePageP(p0, '改后第一段\n\n改后第二段');
+      ok('core：replacePageP 段数变少 → 删多余 p，图/表块保留', (function () {
+        var ps = rp.filter(function (b) { return b.t === 'p'; }).length;
+        var others = rp.filter(function (b) { return b.t !== 'p'; }).length;
+        return ps === 2 && others === 2 && rp[0].x === '改后第一段' && rp[1].x === '改后第二段';
+      })(), JSON.stringify(rp.map(function (b) { return b.t; })));
+      var rp2 = Z.replacePageP(p0, ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'].join('\n\n'));
+      ok('core：replacePageP 段数变多 → 多出的并进最后一段', (function () {
+        var ps = rp2.filter(function (b) { return b.t === 'p'; });
+        return ps.length === 7 && ps[6].x === 'P6\nP7\nP8';
+      })(), JSON.stringify(rp2.filter(function (b) { return b.t === 'p'; }).map(function (b) { return b.x; })));
+      Z.savePageEdit('d0601', 0, '自测改写一\n\n自测改写二');
+      var vc2 = Z.viewCard('d0601');
+      ok('core：savePageEdit 后 viewCard.hasEdit=true', vc2.hasEdit === true);
+      ok('core：savePageEdit 只改 p 块，图块仍在', (function () {
+        var bs = vc2.pages[0].blocks;
+        var ps = bs.filter(function (b) { return b.t === 'p'; }).length;
+        var imgs = bs.filter(function (b) { return b.t === 'img'; }).length;
+        var hs = bs.filter(function (b) { return b.t === 'h'; }).length;
+        return ps === 2 && imgs === 1 && hs === 1 && bs[0].x === '自测改写一';
+      })(), JSON.stringify(vc2.pages[0].blocks.map(function (b) { return b.t; })));
+      ok('core：edits 结构为 {pages:[…]}（未改的页为 null）', (function () {
+        var e = Z.store.edits['d0601'];
+        return !!e && Array.isArray(e.pages) && !!e.pages[0] && e.pages[1] === null;
+      })());
+      Z.savePageEdit('d0601', 0, Z.pagePText(vc.pages[0]));
+      ok('core：把文本改回原文 → 编辑位自动清空', !Z.store.edits['d0601']);
+      Z.savePageEdit('d0601', 1, '临时');
+      Z.clearEdits('d0601');
+      ok('core：clearEdits 恢复原文', !Z.viewCard('d0601').hasEdit && !Z.store.edits['d0601']);
+
+      /* 当前数据下的动态参数（数据升级后断言仍成立） */
+      var d0 = Z.cardById('d0601');
+      var P0 = d0.pages.length;
+      var p0p = d0.pages[0].blocks.filter(function (b) { return b.t === 'p'; }).length;
+      var synN = d0.pages[2].blocks.filter(function (b) { return b.t === 'syn'; }).length;
+      var subN6 = ch6.diseaseIds.filter(function (id) { return Z.cardById(id).kind === 'sub'; }).length;
+
+      /* ============================================================
+       *  C. 目录（章可折叠）
+       * ============================================================ */
+      C.resetOpen();
+      nav('#/catalog'); await wait(50);
+      ok('目录：标题 = 病证目录', tx('#hd .hd-title').indexOf('病证目录') === 0, tx('#hd .hd-title'));
+      ok('目录：9 个章行', qa('.chap').length === 9, qa('.chap').length);
+      ok('目录：默认全部折叠', qa('.chap.open').length === 0, qa('.chap.open').length);
+      ok('目录：章行显示「第X章 名称」', tx('.chap .cn').indexOf('第六章') === 0, tx('.chap .cn'));
+      ok('目录：章行有「N 个病证」chip', tx('.chap .chap-hd .chip').indexOf('30 个病证') >= 0, tx('.chap .chap-hd .chip'));
+      ok('目录：底部统计 = 共 124 个病证（9 章）· 附病 8 个',
+        mainTxt().indexOf('共 124 个病证') >= 0 && mainTxt().indexOf('9 章') >= 0 && mainTxt().indexOf('附病 8 个') >= 0);
+      q('[data-chap-hd="ch06"]').click(); await wait(40);
+      ok('目录：点章行展开', q('.chap[data-chap="ch06"]').classList.contains('open'));
+      ok('目录：展开后行数 = diseaseIds + 本章概述', qa('.chap[data-chap="ch06"] .dr[data-dr]').length === ch6.diseaseIds.length + 1,
+        qa('.chap[data-chap="ch06"] .dr[data-dr]').length + '/' + (ch6.diseaseIds.length + 1));
+      ok('目录：本章概述行有「述」chip', (q('.chap-first .dr') || {}).textContent.indexOf('述') >= 0);
+      ok('目录：子病证行数 = 本章子病证数（当前 ' + subN6 + '）', qa('.chap[data-chap="ch06"] .dr.sub').length === subN6,
+        qa('.chap[data-chap="ch06"] .dr.sub').length + '/' + subN6);
+      ok('目录：子病证缩进 30px', (function () {
+        var el = q('.chap[data-chap="ch06"] .dr.sub');
+        return !!el && parseFloat(getComputedStyle(el).paddingLeft) >= 29;
+      })());
+      ok('目录：子病证显示 displayName（含「·」）', (function () {
+        var el = q('.chap[data-chap="ch06"] .dr.sub .nm');
+        return !!el && el.textContent.indexOf('·') > 0;
+      })(), (q('.chap[data-chap="ch06"] .dr.sub .nm') || {}).textContent);
+      q('[data-chap-hd="ch07"]').click(); await wait(40);
+      ok('目录：附病行带「附」chip', (function () {
+        var row = q('.chap[data-chap="ch07"] .dr.attach');
+        return !!row && row.textContent.indexOf('附') >= 0;
+      })());
+      ok('目录：附病行缩进', (function () {
+        var el = q('.chap[data-chap="ch07"] .dr.attach');
+        return !!el && parseFloat(getComputedStyle(el).paddingLeft) >= 29;
+      })());
+      ok('目录：再点章行可折叠', (function () {
+        q('[data-chap-hd="ch06"]').click();
+        return !q('.chap[data-chap="ch06"]').classList.contains('open');
+      })());
+      /* 目录内搜索过滤 */
+      var kwEl = q('#cat-kw');
+      kwEl.value = '疖'; kwEl.oninput(); await wait(360);
+      var rows = qa('#cat-list .dr[data-dr]');
+      ok('目录：搜索「疖」有命中且不是全部', rows.length >= 1 && rows.length < 50, rows.length);
+      ok('目录：搜索过滤后每行名称都含关键词', rows.every(function (r) {
+        return r.textContent.indexOf('疖') >= 0;
+      }));
+      ok('目录：搜索时命中章强制展开', qa('#cat-list .chap.open').length >= 1);
+      kwEl.value = ''; kwEl.oninput(); await wait(360);
+      ok('目录：清空搜索恢复 9 章', qa('.chap').length === 9, qa('.chap').length);
+      /* 管理（批量隐藏） */
+      q('[data-hact="1"]').click(); await wait(40);
+      ok('目录：管理模式出现底部批量条', !!q('#fbar') && !!q('#fbar [data-mb="hide"]'));
+      ok('目录：管理模式每行有勾选框', qa('#cat-list .dr .ck input').length >= 124, qa('#cat-list .dr .ck input').length);
+      q('#fbar [data-mb="all"]').click(); await wait(30);
+      ok('目录：全选后计数 = 卡片总数', tx('#sel-count').indexOf(String(CARDS.length)) >= 0, tx('#sel-count'));
+      q('#fbar [data-mb="none"]').click(); await wait(30);
+      q('[data-hact="1"]').click(); await wait(30);
+      ok('目录：退出管理模式后批量条移除', !q('#fbar'));
+
+      /* ============================================================
+       *  D. 卡片（翻页）
+       * ============================================================ */
+      nav('#/card/d0601?p=0'); await wait(40);
+      ok('卡片：标题 = displayName', tx('#hd .hd-title').indexOf('疖') === 0, tx('#hd .hd-title'));
+      ok('卡片：副标题显示章号', tx('#hd .hd-title small') === '第六章', tx('#hd .hd-title small'));
+      ok('卡片：卡片头显示章名 / 证型数 / 页数',
+        mainTxt().indexOf('疮疡 · ' + d0.syndromeCount + ' 个证型 · ' + P0 + ' 页') >= 0, mainTxt().slice(0, 80));
+      ok('卡片：页签数 = pages.length（当前 ' + P0 + '）', qa('.pg-tab').length === P0, qa('.pg-tab').length);
+      ok('卡片：页签文字 = 各页标题', qa('.pg-tab .pg-t').map(function (e) { return e.textContent; })
+        .join('|') === Z.cardById('d0601').pages.map(function (p) { return p.title; }).join('|'));
+      ok('卡片：页签序号连续', qa('.pg-tab .pg-i').map(function (e) { return e.textContent; }).join(',') ===
+        (function () { var a = []; for (var i = 1; i <= P0; i++) a.push(i); return a.join(','); })());
+      ok('卡片：当前页签 .on 且为第 1 个', activeTab() === 0, activeTab());
+      ok('卡片：底部按钮 4 个（笔记/收藏/编辑/隐藏）', qa('.ct-acts .btn').length === 4, qa('.ct-acts .btn').length);
+      ok('卡片：页码文字「第 1/N 页」', tx('.pg-now') === '第 1/' + P0 + ' 页', tx('.pg-now'));
+      ok('卡片：首页「上一页」disabled', q('#pg-prev').disabled === true);
+      ok('卡片：首页「下一页」可用', q('#pg-next').disabled === false);
+      q('#pg-next').click(); await wait(40);
+      ok('卡片：点下一页 → hash ?p=1', (location.hash || '').indexOf('#/card/d0601?p=1') === 0, location.hash);
+      ok('卡片：点下一页后页签 2 选中', activeTab() === 1, activeTab());
+      qa('.pg-tab')[2].click(); await wait(40);
+      ok('卡片：点页签 3 → hash ?p=2 且页签同步', (location.hash || '').indexOf('?p=2') > 0 && activeTab() === 2, location.hash + '/' + activeTab());
+      ok('卡片：页码文字同步「第 3/N 页」', tx('.pg-now') === '第 3/' + P0 + ' 页', tx('.pg-now'));
+      nav('#/card/d0601?p=' + (P0 - 1)); await wait(40);
+      ok('卡片：最后一页「下一页」disabled', q('#pg-next').disabled === true);
+      ok('卡片：最后一页「上一页」可用', q('#pg-prev').disabled === false);
+      q('#pg-prev').click(); await wait(40);
+      ok('卡片：点上一页 → hash ?p=2', (location.hash || '').indexOf('?p=2') > 0, location.hash);
+      nav('#/card/d0600?p=0'); await wait(40);
+      ok('卡片：章首卡「上一病证」disabled', q('#d-prev').disabled === true);
+      ok('卡片：章首卡「下一病证」可用', q('#d-next').disabled === false);
+      nav('#/card/d0613?p=0'); await wait(40);
+      ok('卡片：章末卡「下一病证」disabled', q('#d-next').disabled === true);
+      ok('卡片：章末卡「上一病证」可用', q('#d-prev').disabled === false);
+      var onePage = CARDS.filter(function (c) { return c.pages.length === 1; })[0];
+      nav('#/card/' + onePage.id + '?p=0'); await wait(40);
+      ok('卡片：单页卡片两端翻页按钮都 disabled', q('#pg-prev').disabled === true && q('#pg-next').disabled === true,
+        (q('#pg-prev') ? q('#pg-prev').disabled : '-') + '/' + (q('#pg-next') ? q('#pg-next').disabled : '-'));
+      ok('卡片：单页卡片页码「第 1/1 页」', tx('.pg-now') === '第 1/1 页', tx('.pg-now'));
+      /* 左右滑动翻页 + 键盘 ←/→ */
+      function fireTouch(el, dx, dy) {
+        var t0 = new Touch({ identifier: 1, target: el, clientX: 300, clientY: 260 });
+        el.dispatchEvent(new TouchEvent('touchstart', { touches: [t0], changedTouches: [t0], bubbles: true, cancelable: true }));
+        var t1 = new Touch({ identifier: 1, target: el, clientX: 300 + dx, clientY: 260 + dy });
+        el.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [t1], bubbles: true, cancelable: true }));
+      }
+      nav('#/card/d0601?p=0'); await wait(40);
+      fireTouch(q('#ct-body'), -120, 0); await wait(60);
+      ok('卡片：左滑（横移>60px）翻到下一页', (location.hash || '').indexOf('?p=1') > 0, location.hash);
+      fireTouch(q('#ct-body'), 120, 0); await wait(60);
+      ok('卡片：右滑翻回上一页', (location.hash || '').indexOf('?p=0') > 0, location.hash);
+      fireTouch(q('#ct-body'), 0, 200); await wait(60);
+      ok('卡片：纵向滑动不翻页', (location.hash || '').indexOf('?p=0') > 0, location.hash);
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      await wait(60);
+      ok('卡片：键盘 → 翻到下一页', (location.hash || '').indexOf('?p=1') > 0, location.hash);
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+      await wait(60);
+      ok('卡片：键盘 ← 翻回上一页', (location.hash || '').indexOf('?p=0') > 0, location.hash);
+      /* 输入框里按 ←/→ 不翻页（守卫生效） */
+      nav('#/card/d0601?p=0'); await wait(40);
+      q('[data-act="note"]').click(); await wait(40);
+      var nt = q('#note-txt');
+      nt.focus();
+      nt.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      await wait(60);
+      ok('卡片：笔记输入框内按 → 不翻页', (location.hash || '').indexOf('?p=0') > 0, location.hash);
+      q('[data-pc="close"]').click(); await wait(40);
+      /* 证型页 */
+      nav('#/card/d0601?p=2'); await wait(40);
+      ok('卡片：治疗页渲染 ' + synN + ' 个 .syn 证型卡', qa('.syn').length === synN, qa('.syn').length + '/' + synN);
+      ok('卡片：证型含临床表现/治法/代表方', mainTxt().indexOf('临床表现：') > 0 &&
+        mainTxt().indexOf('治法：') > 0 && mainTxt().indexOf('代表方：') > 0);
+      ok('卡片：证型序号连续 1..N', qa('.syn .syn-n').map(function (e) { return e.textContent; }).join(',') ===
+        (function () { var a = []; for (var i = 1; i <= synN; i++) a.push(i); return a.join(','); })());
+      ok('卡片：证型名与数据一致', tx('.syn .syn-t') === '热毒蕴结证', tx('.syn .syn-t'));
+      /* 表格页（d0601 第 2 页有鉴别表） */
+      nav('#/card/d0601?p=1'); await wait(60);
+      ok('卡片：表格以扫描图 .tbl-fig 渲染', qa('.tbl-fig img').length >= 1, qa('.tbl-fig img').length);
+      ok('卡片：表格图 src 指 img/tab/', (q('.tbl-fig img') || {}).getAttribute &&
+        q('.tbl-fig img').getAttribute('src').indexOf('img/tab/') === 0);
+      ok('卡片：表格有图注', tx('.tbl-fig figcaption').indexOf('表') >= 0, tx('.tbl-fig figcaption'));
+      /* 插图（d0601 第 1 页有图） */
+      nav('#/card/d0601?p=0'); await wait(60);
+      ok('卡片：插图以 .rich-img 渲染', qa('.rich-img img').length >= 1, qa('.rich-img img').length);
+      ok('卡片：插图 src 指 img/fig/', q('.rich-img img').getAttribute('src').indexOf('img/fig/') === 0);
+      ok('卡片：插图有图注', tx('.rich-img figcaption').length > 0);
+      /* 页内小标题 */
+      ok('卡片：页内小标题 .rich-h 渲染', qa('.rich-h.lv3').length >= 1 && tx('.rich-h.lv3') === '病因病机',
+        qa('.rich-h').length + '/' + tx('.rich-h.lv3'));
+      /* 子小节递归 */
+      nav('#/card/d0602a?p=2'); await wait(40);
+      ok('卡片：sub 小节以 .sec.sub 渲染', qa('.sec.sub').length >= 1, qa('.sec.sub').length);
+      ok('卡片：sub 小节标题正确', tx('.sec.sub .sec-h').indexOf('外治疗法') >= 0, tx('.sec.sub .sec-h'));
+      ok('卡片：sub 小节正文有内容', qa('.sec.sub .sec-b p').length >= 1);
+      /* 全量渲染无 undefined */
+      ok('卡片：全部卡片×页渲染无 undefined/NaN', (function () {
+        var bad = 0;
+        CARDS.forEach(function (c) {
+          (c.pages || []).forEach(function (p) {
+            var h = Z.renderRich(p.blocks);
+            if (h.indexOf('undefined') >= 0 || h.indexOf('NaN') >= 0) bad++;
+          });
+        });
+        return bad === 0;
+      })());
+      /* 隐藏卡提示 */
+      Z.setHidden('d0602', true);
+      nav('#/card/d0602?p=0'); await wait(40);
+      ok('卡片：隐藏卡显示提示条', qa('.notice.warn').length === 1 && !!q('#unhide-now'));
+      q('#unhide-now').click(); await wait(40);
+      ok('卡片：提示条可取消隐藏', Z.isHidden('d0602') === false);
+      /* 卡片内编辑面板（每页一个 textarea，保存后生效） */
+      nav('#/card/d0601?p=0'); await wait(40);
+      q('[data-act="edit"]').click(); await wait(40);
+      ok('卡片：编辑面板每页一个 textarea（4 页）', qa('textarea[data-ep]').length === 4, qa('textarea[data-ep]').length);
+      var ta0 = q('textarea[data-ep="0"]');
+      ta0.value = '自测面板改写一\n\n自测面板改写二';
+      q('[data-pc="edit-save"]').click(); await wait(60);
+      ok('卡片：面板保存后正文更新', mainTxt().indexOf('自测面板改写一') >= 0);
+      ok('卡片：面板保存后进入已编辑态（顶部恢复条）', !!q('#reset-now'));
+      Z.clearEdits('d0601'); nav('#/card/d0601?p=0'); await wait(40);
+      ok('卡片：恢复原文后内容回来', mainTxt().indexOf('疖是指发生在肌肤浅表部位') >= 0 && !Z.viewCard('d0601').hasEdit);
+
+      /* ============================================================
+       *  E. 搜索
+       * ============================================================ */
+      var rDz = Z.searchAll('疖');
+      ok('搜索：病证名「疖」命中卡片', rDz.cards.length >= 1, rDz.cards.length);
+      ok('搜索：病证名结果 href = #/card/d0601', rDz.cards.some(function (x) { return x.cardId === 'd0601' && x.href === '#/card/d0601'; }));
+      ok('搜索：cards 按分数降序', rDz.cards.every(function (x, i) { return i === 0 || rDz.cards[i - 1].score >= x.score; }));
+      ok('搜索：病证名分数 800~1000', rDz.cards.every(function (x) { return x.score >= 800 && x.score <= 1000; }));
+      var rSy = Z.searchAll('热毒蕴结证');
+      ok('搜索：证型名命中 ≥1', rSy.syns.length >= 1, rSy.syns.length);
+      ok('搜索：证型结果分数 900', rSy.syns.every(function (x) { return x.score === 900; }));
+      ok('搜索：证型结果 href 形如 #/card/…?p=…', rSy.syns.every(function (x) { return symHrefRe(x.href); }),
+        JSON.stringify((rSy.syns[0] || {}).href));
+      var rF = Z.searchAll('五味消毒饮');
+      ok('搜索：方剂名命中 ≥1', rF.formulas.length >= 1, rF.formulas.length);
+      ok('搜索：方剂结果能跳到证型所在卡片页', rF.formulas.some(function (x) { return symHrefRe(x.href); }),
+        JSON.stringify((rF.formulas[0] || {}).href));
+      ok('搜索：方剂结果分数 850', rF.formulas.some(function (x) { return x.score === 850; }));
+      var rTx = Z.searchAll('清热解毒');
+      ok('搜索：页内正文命中 ≥1', rTx.pages.length >= 1, rTx.pages.length);
+      ok('搜索：正文结果 href 形如 #/card/…?p=…', rTx.pages.every(function (x) { return symHrefRe(x.href); }));
+      ok('搜索：正文结果带摘要与次数', rTx.pages.every(function (x) { return x.snip && typeof x.n === 'number' && x.n > 0; }));
+      ok('搜索：正文分数 = 100 + 次数×12', rTx.pages.every(function (x) { return x.score === 100 + Math.min(x.n, 6) * 12; }));
+      var rSub = Z.searchAll('鉴别');
+      ok('搜索：页内小标题命中 ≥1', rSub.subs.length >= 1, rSub.subs.length);
+      ok('搜索：小标题结果 href 形如 #/card/…?p=…', rSub.subs.every(function (x) { return symHrefRe(x.href); }));
+      ok('搜索：小标题分数 ≥620', rSub.subs.every(function (x) { return x.score >= 620; }));
+      ok('搜索：所有分组的 href 都是卡片页地址', (function () {
+        var all = [].concat(rDz.cards, rSy.syns, rF.formulas.filter(function (x) { return x.href; }),
+          rTx.pages, rSub.subs);
+        return all.every(function (x) { return !x.href || isCardHref(x.href); });
+      })());
+      var rEmpty = Z.searchAll('   ');
+      ok('搜索：空关键词返回空结果', rEmpty.cards.length === 0 && rEmpty.syns.length === 0 &&
+        rEmpty.formulas.length === 0 && rEmpty.pages.length === 0 && rEmpty.subs.length === 0);
+      var rNo = Z.searchAll('zzzzzz不存在');
+      ok('搜索：无意义关键词无结果', rNo.cards.length + rNo.syns.length + rNo.formulas.length + rNo.pages.length + rNo.subs.length === 0);
+      nav('#/search?kw=疖'); await wait(120);
+      ok('搜索页：结果可点进卡片', qa('#s-res a[href^="#/card/"]').length >= 1, qa('#s-res a[href^="#/card/"]').length);
+      ok('搜索页：分组标题含「病证卡片」', mainTxt().indexOf('病证卡片') >= 0);
+      var sInp = q('#s-kw');
+      sInp.value = 'zzzzzz不存在'; sInp.oninput(); await wait(320);
+      ok('搜索页：无结果给空状态提示', mainTxt().indexOf('没有找到') >= 0);
+
+      /* ============================================================
+       *  F. 练习数据（WK_QB）
+       * ============================================================ */
+      var QB = Z.QB, DB = QB.diseases || [];
+      ok('练习：schema = 2', QB.schema === 2, QB.schema);
+      ok('练习：病证 124 个', DB.length === 124, DB.length);
+      ok('练习：每个病证有 id/chapterId/kind/name', DB.every(function (d) {
+        return d && d.id && d.chapterId && d.kind && d.name;
+      }));
+      var allSy = [];
+      DB.forEach(function (d) { d.syndromes.forEach(function (s) { allSy.push(s); }); });
+      ok('练习：证型 328 个', allSy.length === 328, allSy.length);
+      ok('练习：所有证型 id 唯一', (function () { var s = {}; return allSy.every(function (x) { if (!x.id || s[x.id]) return false; s[x.id] = 1; return true; }); })());
+      ok('练习：证型 name 全部非空', allSy.every(function (s) { return s && s.name && String(s.name).trim(); }));
+      ok('练习：证型 cardId 都能在 material 里找到', allSy.every(function (s) { return !!Z.cardById(s.cardId); }),
+        allSy.filter(function (s) { return !Z.cardById(s.cardId); }).length);
+      ok('练习：证型 page 都在卡片页范围内', allSy.every(function (s) {
+        var c = Z.cardById(s.cardId);
+        return !!c && s.page >= 0 && s.page < c.pages.length;
+      }), allSy.filter(function (s) {
+        var c = Z.cardById(s.cardId);
+        return !c || !(s.page >= 0 && s.page < c.pages.length);
+      }).length);
+      ok('练习：每个证型都能生成原卡片跳转地址', allSy.every(function (s) { return symHrefRe(Z.syndromeHref(s)); }));
+      ok('练习：治法覆盖率 100%', allSy.every(function (s) { return !!(s.treat && String(s.treat).trim()); }));
+      ok('练习：方名覆盖率 100%', allSy.every(function (s) { return (s.formulaNames || []).length > 0; }));
+      ok('练习：方名不含「《」且「加减」误留 ≤1%', (function () {
+        var all = [], bad = 0;
+        allSy.forEach(function (s) { (s.formulaNames || []).forEach(function (f) { all.push(f); if (String(f).indexOf('《') >= 0 || String(f).indexOf('加减') >= 0) bad++; }); });
+        return all.length > 0 && bad / all.length <= 0.01;
+      })());
+      ok('练习：方剂表 321 条且都有 name', (QB.formulas || []).length === 321 && QB.formulas.every(function (f) { return f && f.name; }));
+      ok('练习：stats.syndromes 与实际一致', QB.stats.syndromes === allSy.length, QB.stats.syndromes + '/' + allSy.length);
+      var examDs = Z.examDiseases();
+      ok('练习：可考病证数 = 题池病证数（当前 ' + examDs.length + '）',
+        examDs.length >= 100 && examDs.length === (QB.stats.diseasesInPool || examDs.length), examDs.length);
+      ok('练习：附病不进题目池', examDs.every(function (d) { return d.kind !== 'attach'; }));
+      ok('练习：practicePool=false 的不进题目池', examDs.every(function (d) { return d.practicePool !== false; }));
+      ok('练习：所有可考病证都有证型', examDs.every(function (d) { return sy(d).length > 0; }));
+
+      /* ============================================================
+       *  G. 选择题生成器：200 次随机
+       * ============================================================ */
+      var gen = { n: 0, badLen: 0, dup: 0, undef: 0, idxOut: 0, missCorrect: 0, decoyHit: 0, over6: 0, badLetter: 0, nullBad: 0, orderDup: 0 };
+      var DIMS = P._dims, orders = {};
+      for (var it = 0; it < 200; it++) {
+        var dd = examDs[Math.floor(Math.random() * examDs.length)];
+        var dim = DIMS[Math.floor(Math.random() * DIMS.length)];
+        var qq = P._buildChoiceQ(dd, dim.k);
+        if (!qq) { if (dim.get(dd).length) gen.nullBad++; continue; }
+        gen.n++;
+        if (qq.opts.length > P.MAX_OPT) gen.badLen++;
+        var seenO = {};
+        qq.opts.forEach(function (o) {
+          if (o === undefined || o === null || String(o).trim() === '' || String(o) === 'undefined') gen.undef++;
+          if (seenO[o]) gen.dup++; seenO[o] = 1;
+        });
+        var corrText = qq.correct.map(function (i) { return qq.opts[i]; });
+        if (qq.correct.some(function (i) { return i < 0 || i >= qq.opts.length; })) gen.idxOut++;
+        if (qq.correctText.some(function (t) { return corrText.indexOf(t) < 0; })) gen.missCorrect++;
+        if (corrText.length > 6) gen.over6++;
+        qq.opts.forEach(function (o, oi) {
+          if (corrText.indexOf(o) < 0 && qq.correctText.indexOf(o) >= 0) gen.decoyHit++;
+          if (P.letter(oi) === undefined || P.letter(oi) === '?') gen.badLetter++;
+        });
+        var sig = qq.opts.join('¦');
+        if (!orders[dd.id + '|' + dim.k]) orders[dd.id + '|' + dim.k] = {};
+        if (orders[dd.id + '|' + dim.k][sig]) gen.orderDup++;
+        orders[dd.id + '|' + dim.k][sig] = 1;
+      }
+      ok('生成器：200 次生成全部有效', gen.n >= 190, gen.n);
+      ok('生成器：选项数 ≤ 12', gen.badLen === 0, gen.badLen);
+      ok('生成器：选项无重复', gen.dup === 0, gen.dup);
+      ok('生成器：选项无 undefined / 空串', gen.undef === 0, gen.undef);
+      ok('生成器：correct 索引都在 opts 范围内', gen.idxOut === 0, gen.idxOut);
+      ok('生成器：正确项文本都能在 opts 里找到', gen.missCorrect === 0, gen.missCorrect);
+      ok('生成器：干扰项绝不与正确项重合', gen.decoyHit === 0, gen.decoyHit);
+      ok('生成器：正确项 ≤6（超出随机取 6）', gen.over6 === 0, gen.over6);
+      ok('生成器：letter(i) 永不为 undefined', gen.badLetter === 0, gen.badLetter);
+      ok('生成器：非空维度不返回 null', gen.nullBad === 0, gen.nullBad);
+      ok('生成器：同一病证多次生成选项顺序会变（随机）', (function () {
+        var any = Object.keys(orders).filter(function (k) { return Object.keys(orders[k]).length > 1; });
+        return any.length >= 1;
+      })());
+      ok('生成器：letter 表 = ABCDEFGHIJKL', (function () {
+        for (var i = 0; i < 12; i++) if (P.letter(i) !== 'ABCDEFGHIJKL'.charAt(i)) return false;
+        return true;
+      })());
+      ok('判分：集合完全相等才算对', P._sameSet([0, 1, 2], [0, 1, 2]) === true &&
+        P._sameSet([0, 1], [0, 1, 2]) === false && P._sameSet([0, 2], [0, 1]) === false);
+      ok('生成器：每次重新随机（不写进 store）', (function () {
+        var a = P._buildGroup(examDs[0]), b = P._buildGroup(examDs[0]);
+        return a !== b && JSON.stringify(Z.store).indexOf('"opts"') < 0 && JSON.stringify(Z.store).indexOf('"qcache"') < 0;
+      })());
+
+      /* ============================================================
+       *  H. 设置页 / 默写页 / 选择题页
+       * ============================================================ */
+      nav('#/setup/mo'); await wait(80);
+      ok('设置：章级范围树 = 练习章节数', qa('[data-rg]').length === Z.qbChapters().length, qa('[data-rg]').length);
+      var disRows = qa('.pick.dis');
+      ok('设置：附病/无证型病证灰显且不可勾选', disRows.length >= 1 && disRows.every(function (r) {
+        var ck = r.querySelector('input'); return ck && ck.disabled;
+      }), disRows.length);
+      ok('设置：附病标注「附病·不考」', disRows.some(function (r) { return r.textContent.indexOf('附病·不考') >= 0; }));
+      q('#sel-none').click(); await wait(20);
+      ok('设置：未选时「开始」禁用', !!q('#start-btn') && q('#start-btn').disabled === true);
+      ok('设置：清空后已选为 0', tx('#sel-d') === '0' && tx('#sel-s') === '0', tx('#sel-d') + '/' + tx('#sel-s'));
+      q('#sel-all').click(); await wait(30);
+      var expSy = examDs.reduce(function (n, d) { return n + sy(d).length; }, 0);
+      ok('设置：全选病证数正确', tx('#sel-d') === String(examDs.length), tx('#sel-d') + '/' + examDs.length);
+      ok('设置：全选证型数正确', tx('#sel-s') === String(expSy), tx('#sel-s') + '/' + expSy);
+      ok('设置：全选后「开始」可用', q('#start-btn').disabled === false);
+      q('#sel-none').click(); await wait(20);
+      var ck1 = q('[data-dsel]'), dId1 = ck1.getAttribute('data-dsel'), chId1 = Z.qbById(dId1).chapterId;
+      ck1.click(); await wait(20);
+      ok('设置：章级三态（半选）', q('[data-rg="' + chId1 + '"] .rg-box').classList.contains('half'));
+      q('#sel-all').click(); await wait(20);
+
+      /* 默写页 */
+      q('#start-btn').click(); await wait(160);
+      var run = P._run();
+      ok('默写：已进入练习页', !!run && run.mode === 'mo' && location.hash === '#/run', location.hash);
+      var d = Z.qbById(run.ids[run.i]);
+      var list = sy(d), dn = Z.dname(d);
+      ok('默写：标题 = 病证名', tx('#hd .hd-title').indexOf(dn) === 0, tx('#hd .hd-title') + '/' + dn);
+      ok('默写：显示「第 1/n 个病证」', mainTxt().indexOf('第 ' + (run.i + 1) + '/' + run.ids.length + ' 个病证') >= 0);
+      var moBlocks = qa('.mo-syn');
+      ok('默写：一屏一个病证（证型块数 = 证型数）', moBlocks.length === list.length, moBlocks.length + '/' + list.length);
+      ok('默写：每个证型 3 个输入框', moBlocks.every(function (b) { return b.querySelectorAll('[data-mo-syn]').length === 3; }));
+      ok('默写：块头只写「证型 i」不泄露证型名', moBlocks.every(function (b, i) {
+        var t = b.querySelector('.mo-syn-h').textContent.replace(/\s/g, '');
+        return t === '证型' + (i + 1) && list.every(function (s) { return t.indexOf(s.name) < 0; });
+      }));
+      ok('默写：手机回车不提交（enterkeyhint=next，无 form）', (function () {
+        var inp = q('.mo-syn input[data-mo-syn]');
+        return !!inp && inp.getAttribute('enterkeyhint') === 'next' && !q('#mo-box form');
+      })());
+      ok('默写：底部有 提交/上一题/下一题/结束', !!q('#mo-submit') && !!q('#mo-prev') && !!q('#mo-next') && !!q('#mo-end'));
+      var inps = qa('.mo-syn [data-mo-syn]');
+      inps[0].value = '自测输入';
+      if (inps[0].oninput) inps[0].oninput();
+      await wait(950);
+      ok('默写：输入变化 800ms 后自动存草稿', (Z.store.drafts || []).length >= 1, (Z.store.drafts || []).length);
+      ok('默写：草稿不含题目对象', (function () {
+        var s = JSON.stringify((Z.store.drafts || [])[0] || {});
+        return s.indexOf('"opts"') < 0 && s.indexOf('"qcache"') < 0 && s.indexOf('自测输入') >= 0;
+      })());
+      q('#mo-submit').click(); await wait(160);
+      ok('默写：提交后每空显示「正确答案」', qa('.an-key').length === list.length * 3, qa('.an-key').length);
+      ok('默写：答案含证型名原文', qa('.an-key').some(function (e) { return e.textContent.indexOf(list[0].name) >= 0; }));
+      ok('默写：提交后每证型 3 输入 + 6 个自评按钮', (function () {
+        var bs = qa('.mo-syn');
+        return bs.length === list.length && bs.every(function (b) {
+          return b.querySelectorAll('[data-mo-syn]').length === 3 && b.querySelectorAll('[data-mo-self]').length === 6;
+        });
+      })());
+      ok('默写：提交后可折叠查看证候原文', qa('.an-fold').length === list.length, qa('.an-fold').length);
+      ok('默写：提交后输入框只读', q('.mo-syn [data-mo-syn]').hasAttribute('readonly'));
+      ok('默写：每个证型有「查看原卡片」链接', qa('.syn-go a[href^="#/card/"]').length === list.length, qa('.syn-go a').length);
+      ok('默写：查看原卡片链到证型所在页', qa('.syn-go a').every(function (a, i) {
+        return a.getAttribute('href') === Z.syndromeHref(list[i]);
+      }), (q('.syn-go a') || {}).getAttribute && q('.syn-go a').getAttribute('href'));
+      function selfBtns(sid, v) {
+        return qa('[data-mo-self]').filter(function (b) {
+          var pp = (b.getAttribute('data-mo-self') || '').split('|');
+          return pp[0] === sid && pp[2] === String(v);
+        });
+      }
+      var okBtns = selfBtns(list[0].id, 1);
+      okBtns.forEach(function (b) { b.click(); });
+      await wait(180);
+      var ev0 = (P._run().eval[d.id] || {})[list[0].id] || {};
+      ok('默写：点「我答对了」按小题记录自评', okBtns.length === 3 && ev0.name === 1 && ev0.treat === 1 && ev0.formula === 1,
+        JSON.stringify(ev0));
+      selfBtns(list[0].id, 1)[0].click(); await wait(180);
+      ok('默写：再点「我答对了」清除该小题自评', !(((P._run().eval[d.id] || {})[list[0].id] || {}).name === 1));
+      selfBtns(list[0].id, 1)[0].click(); await wait(180);
+      ok('默写：统计口径 = 已提交证型数 × 3 小题', (function () {
+        var mt = P._moStats();
+        return !!mt && mt.qTotal === list.length * 3 && mt.qRight === 3 && mt.syTotal === list.length;
+      })(), JSON.stringify(P._moStats()));
+      var bk = window.DS_BACK(); await wait(80);
+      ok('返回键：练习中 DS_BACK 返回 true 并弹确认', bk === true && UI.dialogOpen(), bk + '/' + UI.dialogOpen());
+      ok('返回键：确认文案含「自动保存」', tx('#dialog .dtxt').indexOf('自动保存') >= 0);
+      closeDlg(); await wait(60);
+      ok('返回键：取消后仍留在练习页', location.hash === '#/run' && !!P._run());
+      var keep = Z.store.drafts;
+      Z.store.drafts = [0, 1, 2, 3, 4].map(function (i) { return { key: 'fake' + i, ts: Date.now() - i, mode: 'mo', title: 'x' + i, progress: '0/1' }; });
+      P._start('mo', [run.ids[0]]);
+      P._saveDraft(true);
+      ok('草稿：最多保留 5 份', Z.store.drafts.length === 5, Z.store.drafts.length);
+      Z.store.drafts = keep;
+      P._clear(); closeDlg(); await wait(40);
+
+      /* 选择题页（含进度文字刷新验证） */
+      var tcD = examDs[0];
+      P._start('tc', [tcD.id]);
+      UI.go('#/run'); await wait(180);
+      ok('选择题：一屏一个病证 + 3 个小题卡片', P._run().mode === 'tc' && qa('.pq').length === 3, qa('.pq').length);
+      ok('选择题：题干含病证名与「包括以下哪些」',
+        mainTxt().indexOf('「' + Z.dname(tcD) + '」') >= 0 && mainTxt().indexOf('包括以下哪些') >= 0);
+      ok('选择题：每题选项 ≤12 且字母都不 undefined', (function () {
+        var bad = 0;
+        qa('.pq').forEach(function (b) {
+          var os = b.querySelectorAll('.q-opt');
+          if (os.length > 12) bad++;
+          os.forEach(function (o) { if (o.querySelector('.q-lt').textContent === '?') bad++; });
+        });
+        return bad === 0;
+      })());
+      for (var qi = 0; qi < 3; qi++) {
+        q('.pq[data-q="' + qi + '"] .q-opt').click();
+        await wait(20);
+        q('.pq[data-q="' + qi + '"] [data-qs]').click();
+        await wait(140);
+      }
+      ok('选择题：提交后即时判对错', qa('.q-res').length === 3 && qa('.q-res.ok, .q-res.bad').length === 3);
+      ok('选择题：提交后列出正确项', tx('.q-key').indexOf('正确答案') >= 0);
+      ok('选择题：最后一小题提交后进度文字立刻刷新（已完成 1/1）',
+        mainTxt().indexOf('已完成 1/1 个病证') >= 0, mainTxt().slice(0, 80));
+      ok('选择题：三小题都提交后显示完整对照表', qa('.cmp-tbl tbody tr').length === sy(tcD).length,
+        qa('.cmp-tbl tbody tr').length + '/' + sy(tcD).length);
+      ok('选择题：对照表证型名可跳原卡片', qa('.cmp-tbl a[href^="#/card/"]').length === sy(tcD).length,
+        qa('.cmp-tbl a[href^="#/card/"]').length);
+      q('#tc-next').click(); await wait(200);
+      ok('结果页：显示正确率与「再来一组」', mainTxt().indexOf('正确率') >= 0 && !!q('#rs-again'));
+      ok('结果页：记录写入本机（最近记录）', (Z.store.prec || []).length >= 1, (Z.store.prec || []).length);
+      q('#rs-again').click(); await wait(180);
+      ok('结果页：「再来一组」重新随机（新 run、分数清零）', (function () {
+        var r = P._run();
+        return !!r && r.i === 0 && r.finished === false && Object.keys(r.res || {}).length === 0;
+      })());
+      P._clear(); await wait(30);
+
+      /* ============================================================
+       *  I. 收藏 / 笔记 / 编辑 / 隐藏（目录联动）
+       * ============================================================ */
+      C.resetOpen(); C.setOpen('ch06', true);
+      nav('#/catalog'); await wait(40);
+      ok('收藏：初始无收藏', Z.favCards().length === 0, Z.favCards().length);
+      nav('#/card/d0601?p=0'); await wait(40);
+      q('[data-act="fav"]').click(); await wait(40);
+      ok('收藏：点收藏后 isFav = true', Z.isFav('d0601') === true);
+      ok('收藏：按钮变「已藏」', mainTxt().indexOf('已藏') >= 0);
+      nav('#/catalog'); await wait(40);
+      ok('收藏：目录行出现 ★ 标记', qa('.dr[data-dr="d0601"] .flag.star').length === 1);
+      nav('#/fav'); await wait(40);
+      ok('收藏页：列出病证卡并链到 #/card/', qa('#main a[href^="#/card/"]').length >= 1, qa('#main a[href^="#/card/"]').length);
+      ok('收藏页：收藏项就是 d0601', (q('#main a[href^="#/card/"]') || {}).getAttribute &&
+        q('#main a[href^="#/card/"]').getAttribute('href') === '#/card/d0601');
+      nav('#/card/d0601?p=0'); await wait(40);
+      q('[data-act="fav"]').click(); await wait(40);
+      ok('收藏：再点一次取消收藏', Z.isFav('d0601') === false);
+      /* 笔记 */
+      q('[data-act="note"]').click(); await wait(40);
+      ok('笔记：面板有输入框', !!q('#note-txt'));
+      q('#note-txt').value = '自测笔记内容';
+      q('[data-pc="note-save"]').click(); await wait(60);
+      ok('笔记：保存后 Z.note 有内容', Z.note('d0601') === '自测笔记内容', Z.note('d0601'));
+      ok('笔记：卡片进入已记笔记态（按钮 on）', (q('[data-act="note"]') || {}).classList ? q('[data-act="note"]').classList.contains('on') : false);
+      nav('#/catalog'); await wait(40);
+      ok('笔记：目录行出现 ✎ 标记', qa('.dr[data-dr="d0601"] .flag.note').length === 1);
+      Z.setNote('d0601', '');
+      ok('笔记：清除后为空', Z.note('d0601') === '');
+      /* 隐藏 */
+      Z.setHidden('d0602', true);
+      nav('#/catalog'); await wait(40);
+      ok('隐藏：目录行带 .hid（删除线类）', qa('.dr[data-dr="d0602"].hid').length === 1);
+      ok('隐藏：页面顶部有「已隐藏」提示条', mainTxt().indexOf('已隐藏 1 个病证') >= 0);
+      ok('隐藏：navCard 跳过被隐藏卡', Z.navCard('d0601', 1) === 'd0602a', Z.navCard('d0601', 1));
+      Z.setHidden('d0602', false);
+      ok('隐藏：取消后恢复', Z.isHidden('d0602') === false && Z.navCard('d0601', 1) === 'd0602');
+
+      /* ============================================================
+       *  J. 全局 / 资源 / 版本 / 布局
+       * ============================================================ */
+      nav('#/home'); await wait(40);
+      ok('返回键：DS_BACK 已暴露', typeof window.DS_BACK === 'function');
+      ok('返回键：首页返回 false（交给 App 退出）', window.DS_BACK() === false);
+      nav('#/about'); await wait(40);
+      ok('返回键：二级页返回 true', window.DS_BACK() === true);
+      UI.confirmDialog('自测弹窗', '自测'); await wait(20);
+      ok('返回键：弹窗打开时先关弹窗', UI.dialogOpen() && window.DS_BACK() === true && !UI.dialogOpen());
+      await wait(20);
+      nav('#/about'); await wait(60);
+      ok('关于页：统计口径 = 卡片/页/图表', mainTxt().indexOf(MS.cards + ' 张卡片') >= 0 &&
+        mainTxt().indexOf(MS.pages + ' 页') >= 0 && mainTxt().indexOf(MS.figs + ' 张') >= 0 &&
+        mainTxt().indexOf(MS.tables + ' 张') >= 0, mainTxt().slice(0, 160));
+      nav('#/me'); await wait(60);
+      ok('我的页：显示病证与证型口径', mainTxt().indexOf(MS.diseases + ' 个病证') >= 0 && mainTxt().indexOf('个证型') >= 0,
+        mainTxt().slice(0, 120));
+      /* 布局：无横向溢出 */
+      nav('#/catalog'); await wait(60);
+      var de = document.documentElement;
+      try { document.body.setAttribute('data-vw', String(de.clientWidth) + 'x' + window.innerHeight); } catch (e0) { }
+      ok('布局：目录页无横向溢出', de.scrollWidth <= de.clientWidth + 1, de.scrollWidth + '/' + de.clientWidth);
+      ok('布局：390 宽视口下 scrollWidth = 390', de.clientWidth !== 390 || de.scrollWidth === 390,
+        de.clientWidth + '/' + de.scrollWidth);
+      nav('#/card/d0601?p=2'); await wait(60);
+      ok('布局：证型页无横向溢出', de.scrollWidth <= de.clientWidth + 1, de.scrollWidth + '/' + de.clientWidth);
+      ok('布局：390 宽视口下证型页 scrollWidth = 390', de.clientWidth !== 390 || de.scrollWidth === 390,
+        de.clientWidth + '/' + de.scrollWidth);
+      var bigCard = CARDS.slice().sort(function (a, b) { return b.pages.length - a.pages.length; })[0];
+      nav('#/card/' + bigCard.id + '?p=0'); await wait(60);
+      ok('布局：最多页数的卡片（' + bigCard.pages.length + ' 页）无横向溢出', de.scrollWidth <= de.clientWidth + 1,
+        de.scrollWidth + '/' + de.clientWidth);
+      ok('布局：页签容器可横向滚动', (function () {
+        var t = q('#pg-tabs');
+        return !!t && getComputedStyle(t).overflowX === 'auto' && qa('.pg-tab').length === bigCard.pages.length;
+      })(), (q('#pg-tabs') ? getComputedStyle(q('#pg-tabs')).overflowX : '-') + '/' + qa('.pg-tab').length);
+      ok('布局：正文容器无横向溢出', (function () {
+        var b = q('#ct-body');
+        return !!b && b.scrollWidth <= b.clientWidth + 1;
+      })());
+      /* 资源 / 壳子 / 版本 */
+      ok('资源：css/practice.css 可加载', await loadRes('css/practice.css'));
+      ok('资源：js/cards.js 可加载', await loadRes('js/cards.js'));
+      ok('资源：图标 icon-192 可加载', await loadRes('icons/icon-192.png'));
+      var imgList = [];
+      CARDS.forEach(function (c) { c.pages.forEach(function (p) { walkBlocks(p.blocks, function (b) { if (b.t === 'img' && b.src) imgList.push(b.src); }); }); });
+      var uniqImgs = imgList.filter(function (s, i) { return imgList.indexOf(s) === i; }).slice(0, 40);
+      var imgFail = 0;
+      for (var i0 = 0; i0 < uniqImgs.length; i0 += 10) {
+        var rsx = await Promise.all(uniqImgs.slice(i0, i0 + 10).map(loadRes));
+        rsx.forEach(function (x) { if (!x) imgFail++; });
+      }
+      ok('资源：抽查 ' + uniqImgs.length + ' 张插图都能加载', imgFail === 0, imgFail);
+      var idxTxt = '';
+      try { idxTxt = await (await fetch('index.html?t=' + Date.now(), { cache: 'no-store' })).text(); } catch (e) { }
+      ok('壳子：index.html 引用 material.js / core.js / cards.js',
+        idxTxt.indexOf('data/material.js') >= 0 && idxTxt.indexOf('js/core.js') >= 0 && idxTxt.indexOf('js/cards.js') >= 0);
+      ok('壳子：无旧全局残留（ZNK / YL / YL_MAT）',
+        typeof window.ZNK === 'undefined' && typeof window.YL === 'undefined' && !window.YL_MAT);
+      var V1 = window.WK_VERSION || {}, V2 = null;
+      try { V2 = await (await fetch('version.json?t=' + Date.now(), { cache: 'no-store' })).json(); } catch (e) { }
+      ok('版本：version.js 与 version.json 一致', !!V2 && String(V2.web) === String(V1.web), (V1 && V1.web) + '/' + (V2 && V2.web));
+      Z.save(true);
+      ok('存储：使用新键 wk.data.v1', !!localStorage.getItem('wk.data.v1'));
+      ok('存储：键结构含 notes/fav/hidden/edits/last/meta', (function () {
+        var s = JSON.parse(localStorage.getItem('wk.data.v1'));
+        return ['notes', 'fav', 'hidden', 'edits', 'last', 'meta'].every(function (k) { return s[k] != null; });
+      })());
+
+    } catch (e) {
+      F++;
+      L.push('EXCEPTION ' + (e && e.stack ? e.stack : e));
+    }
+    /* 清理：恢复自测前的本机数据与目录展开状态 */
+    try {
+      if (snap) {
+        Z.store.drafts = snap.drafts; Z.store.prec = snap.prec; Z.store.fav = snap.fav;
+        Z.store.notes = snap.notes; Z.store.edits = snap.edits; Z.store.sel = snap.sel;
+        Z.store.hidden = snap.hidden; Z.store.last = snap.last;
+        Z.save(true);
+      }
+      if (C) C.resetOpen();
+      if (openSnap === null) localStorage.removeItem('wk.cat.open.v1');
+      else localStorage.setItem('wk.cat.open.v1', openSnap);
+      if (window.WK_PRACTICE && window.WK_PRACTICE._clear) window.WK_PRACTICE._clear();
+      if (C) C.removeManageBar();
+      closeDlg();
+    } catch (e2) { }
+
+    var out = document.getElementById('R');
+    out.textContent = 'RESULT P=' + Pn + ' F=' + F + (L.length ? ' | ' + L.join(' | ') : '');
+    document.title = 'selftest P=' + Pn + ' F=' + F;
+    if (window.console) console.log(out.textContent);
+    window.__SELFTEST = { pass: Pn, fail: F, fails: L };
+  }
+  window.addEventListener('load', function () { setTimeout(run, 150); });
+})();
+</script>
+</body></html>

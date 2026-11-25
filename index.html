@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#6b3a55">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="中医外科学 · 教材卡片 / 默写练习 / 选择题（离线可用）">
+<title>中医外科学</title>
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="css/practice.css">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="中医外科学">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+</head>
+<body>
+<div id="app">
+  <header id="hd"></header>
+  <main id="main"><div class="empty">载入中…</div></main>
+  <nav id="tabbar"></nav>
+</div>
+<div id="toast" aria-live="polite"></div>
+<div id="dialog"></div>
+<script src="js/version.js"></script>
+<script src="data/material.js"></script>
+<script src="data/practice.js"></script>
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/practiceview.js"></script>
+<script src="js/misc.js"></script>
+<script src="js/boot.js"></script>
+<script>
+/* 中医外科学 · 注册 Service Worker（离线可用；失败不影响已缓存资源） */
+(function () {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' }).catch(function () {});
+  });
+})();
+</script>
+</body>
+</html>
