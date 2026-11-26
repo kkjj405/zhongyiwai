@@ -3,7 +3,7 @@
  * 本文件由 build_pwa.py 生成，勿手改。
  */
 const CORE = 'zwk-zhongyiwai-v1.0.0';
-const IMG = 'zwk-zhongyiwai-img-67ebd4c38f';
+const IMG = 'zwk-zhongyiwai-img-e5f7fd1c11';
 const CORE_ASSETS = [
   "./app.css",
   "./index.html",
